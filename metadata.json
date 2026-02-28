@@ -1,0 +1,5 @@
+{
+  "name": "Bati Primary Hospital Data Entry",
+  "description": "A data entry system for Bati Primary Hospital managing referrals and appointments.",
+  "requestFramePermissions": []
+}
