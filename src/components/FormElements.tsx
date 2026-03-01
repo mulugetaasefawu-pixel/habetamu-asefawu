@@ -3,15 +3,19 @@ import React from 'react';
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   className?: string;
+  error?: string;
 }
 
-export const Input: React.FC<InputProps> = ({ label, className = '', ...props }) => (
+export const Input: React.FC<InputProps> = ({ label, className = '', error, ...props }) => (
   <div className={`flex flex-col space-y-1.5 ${className}`}>
     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">{label}</label>
     <input
-      className="glass-input block w-full px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none"
+      className={`glass-input block w-full px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition-all ${
+        error ? 'border-red-500 ring-2 ring-red-500/10' : ''
+      }`}
       {...props}
     />
+    {error && <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest ml-1">{error}</span>}
   </div>
 );
 
@@ -19,13 +23,16 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
   options: { value: string; label: string }[];
   className?: string;
+  error?: string;
 }
 
-export const Select: React.FC<SelectProps> = ({ label, options, className = '', ...props }) => (
+export const Select: React.FC<SelectProps> = ({ label, options, className = '', error, ...props }) => (
   <div className={`flex flex-col space-y-1.5 ${className}`}>
     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">{label}</label>
     <select
-      className="glass-input block w-full px-4 py-2.5 text-sm text-slate-900 outline-none appearance-none cursor-pointer"
+      className={`glass-input block w-full px-4 py-2.5 text-sm text-slate-900 outline-none appearance-none cursor-pointer transition-all ${
+        error ? 'border-red-500 ring-2 ring-red-500/10' : ''
+      }`}
       {...props}
     >
       <option value="">Select Option</option>
@@ -35,22 +42,27 @@ export const Select: React.FC<SelectProps> = ({ label, options, className = '', 
         </option>
       ))}
     </select>
+    {error && <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest ml-1">{error}</span>}
   </div>
 );
 
 interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
   className?: string;
+  error?: string;
 }
 
-export const TextArea: React.FC<TextAreaProps> = ({ label, className = '', ...props }) => (
+export const TextArea: React.FC<TextAreaProps> = ({ label, className = '', error, ...props }) => (
   <div className={`flex flex-col space-y-1.5 ${className}`}>
     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">{label}</label>
     <textarea
-      className="glass-input block w-full px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none"
+      className={`glass-input block w-full px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition-all ${
+        error ? 'border-red-500 ring-2 ring-red-500/10' : ''
+      }`}
       rows={3}
       {...props}
     />
+    {error && <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest ml-1">{error}</span>}
   </div>
 );
 

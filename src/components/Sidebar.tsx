@@ -46,7 +46,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onSig
     { id: 'users', label: 'User Management', icon: ShieldCheck, roles: ['Admin'] },
   ];
 
-  const filteredMenuItems = menuItems.filter(item => item.roles.includes(userRole));
+  const filteredMenuItems = menuItems.filter(item => 
+    item.roles.some(role => role.toLowerCase() === userRole.toLowerCase())
+  );
 
   return (
     <div className="w-64 glass-sidebar text-white flex flex-col h-screen sticky top-0 z-40">

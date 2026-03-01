@@ -9,9 +9,18 @@ interface AdmissionFormProps {
 }
 
 export const AdmissionForm: React.FC<AdmissionFormProps> = ({ record, onChange }) => {
+  const isDateInvalid = record.dateOfAdmission && record.dateOfDischarge && new Date(record.dateOfDischarge) < new Date(record.dateOfAdmission);
+
   return (
     <div className="p-8 space-y-8 min-h-screen">
       
+      {isDateInvalid && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-2xl flex items-center space-x-3 animate-pulse">
+          <Activity className="w-5 h-5" />
+          <span className="text-sm font-bold uppercase tracking-wider">Warning: Date of Discharge is prior to Date of Admission</span>
+        </div>
+      )}
+
       {/* Patient Information */}
       <div className="glass-card p-8">
         <div className="flex items-center space-x-3 mb-8">
@@ -152,6 +161,7 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ record, onChange }
             <FileText className="w-5 h-5" />
           </div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Discharge Details</h2>
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold ml-auto">Rule: Discharge ≥ Admission</p>
         </div>
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-4">
@@ -160,6 +170,7 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ record, onChange }
               type="date" 
               value={record.dateOfDischarge}
               onChange={(e) => onChange('dateOfDischarge', e.target.value)}
+              error={isDateInvalid ? "Must be after admission" : undefined}
             />
           </div>
           <div className="col-span-4">

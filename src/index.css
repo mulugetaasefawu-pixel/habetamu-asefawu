@@ -24,4 +24,21 @@
   .glass-input {
     @apply bg-white/50 backdrop-blur-sm border border-slate-200 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all rounded-xl;
   }
+
+  /* Lamp specific styles */
+  .lamp-wrapper {
+    @apply relative w-[280px] h-[400px] flex justify-center;
+  }
+  
+  .lamp-svg {
+    @apply w-full h-full overflow-visible;
+  }
+
+  .container {
+    @apply flex items-center justify-center gap-8 flex-wrap w-full max-w-[1000px];
+  }
+
+  .login-form {
+    @apply bg-white/5 backdrop-blur-[20px] p-10 rounded-[30px] w-[340px] border border-white/10 shadow-[0_20px_40px_rgba(0,0,0,0.3)] transition-all duration-700 ease-[cubic-bezier(0.175,0.885,0.32,1.275)];
+  }
 }

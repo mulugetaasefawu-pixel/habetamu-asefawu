@@ -23,7 +23,8 @@ export default function App() {
     return localStorage.getItem('currentUser') || '';
   });
   const [userRole, setUserRole] = useState<string>(() => {
-    return localStorage.getItem('userRole') || 'Admin';
+    const role = localStorage.getItem('userRole') || 'Admin';
+    return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
   });
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [viewMode, setViewMode] = useState<'entry' | 'list'>('entry');
@@ -301,9 +302,14 @@ export default function App() {
 
   const handleSave = () => {
     let currentRecord;
-    if (activeTab === 'register') currentRecord = currentReferralRecord;
-    else if (activeTab === 'admission') currentRecord = currentAdmissionRecord;
-    else currentRecord = currentAppointmentRecord;
+    
+    if (activeTab === 'register') {
+      currentRecord = currentReferralRecord;
+    } else if (activeTab === 'admission') {
+      currentRecord = currentAdmissionRecord;
+    } else {
+      currentRecord = currentAppointmentRecord;
+    }
     
     if (!currentRecord.mrn || currentRecord.mrn.length !== 6) {
       showToast('MRN must be exactly 6 digits', 'error');
@@ -315,14 +321,24 @@ export default function App() {
       return;
     }
 
+    // Date validation for Admission & Discharge
+    if (activeTab === 'admission') {
+      const admissionRec = currentRecord as any;
+      if (admissionRec.dateOfAdmission && admissionRec.dateOfDischarge) {
+        const admission = new Date(admissionRec.dateOfAdmission);
+        const discharge = new Date(admissionRec.dateOfDischarge);
+        if (discharge < admission) {
+          showToast('Date of Discharge cannot be prior to Date of Admission', 'error');
+          return;
+        }
+      }
+    }
+
     if (activeTab === 'register') {
-      localStorage.setItem('referralRecords', JSON.stringify(referralRecords));
       handleAddNewReferral();
     } else if (activeTab === 'followup') {
-      localStorage.setItem('appointmentRecords', JSON.stringify(appointmentRecords));
       handleAddNewAppointment();
     } else if (activeTab === 'admission') {
-      localStorage.setItem('admissionRecords', JSON.stringify(admissionRecords));
       handleAddNewAdmission();
     }
     showToast('Record Saved Successfully');
