@@ -13,76 +13,117 @@ import { Dashboard } from './components/Dashboard';
 import { Reports } from './components/Reports';
 import { UserManagement } from './components/UserManagement';
 import { SignIn } from './components/SignIn';
+import { SignUp } from './components/SignUp';
 import { ReferralRecord, initialRecord, AppointmentRecord, initialAppointmentRecord, AdmissionRecord, initialAdmissionRecord } from './types';
+import { supabase } from './supabaseClient';
+import { dbService } from './services/dbService';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('isAuthenticated') === 'true';
-  });
-  const [currentUser, setCurrentUser] = useState<string>(() => {
-    return localStorage.getItem('currentUser') || '';
-  });
-  const [userRole, setUserRole] = useState<string>(() => {
-    const role = localStorage.getItem('userRole') || 'Admin';
-    return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [currentUser, setCurrentUser] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>('Registrar');
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [viewMode, setViewMode] = useState<'entry' | 'list'>('entry');
   
   // Referral State
-  const [referralRecords, setReferralRecords] = useState<ReferralRecord[]>(() => {
-    const saved = localStorage.getItem('referralRecords');
-    return saved ? JSON.parse(saved) : [initialRecord];
-  });
+  const [referralRecords, setReferralRecords] = useState<ReferralRecord[]>([initialRecord]);
   const [currentReferralIndex, setCurrentReferralIndex] = useState(0);
   
   // Appointment State
-  const [appointmentRecords, setAppointmentRecords] = useState<AppointmentRecord[]>(() => {
-    const saved = localStorage.getItem('appointmentRecords');
-    return saved ? JSON.parse(saved) : [initialAppointmentRecord];
-  });
+  const [appointmentRecords, setAppointmentRecords] = useState<AppointmentRecord[]>([initialAppointmentRecord]);
   const [currentAppointmentIndex, setCurrentAppointmentIndex] = useState(0);
 
   // Admission State
-  const [admissionRecords, setAdmissionRecords] = useState<AdmissionRecord[]>(() => {
-    const saved = localStorage.getItem('admissionRecords');
-    return saved ? JSON.parse(saved) : [initialAdmissionRecord];
-  });
+  const [admissionRecords, setAdmissionRecords] = useState<AdmissionRecord[]>([initialAdmissionRecord]);
   const [currentAdmissionIndex, setCurrentAdmissionIndex] = useState(0);
 
-  // Persistence
+  // Supabase Auth Session Management
   useEffect(() => {
-    localStorage.setItem('referralRecords', JSON.stringify(referralRecords));
-  }, [referralRecords]);
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setIsAuthenticated(true);
+        setCurrentUser(session.user.email || 'User');
+        setUserRole('Admin'); // Default for this project
+      }
+      setIsLoading(false);
+    };
 
-  useEffect(() => {
-    localStorage.setItem('appointmentRecords', JSON.stringify(appointmentRecords));
-  }, [appointmentRecords]);
+    checkSession();
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setIsAuthenticated(true);
+        setCurrentUser(session.user.email || 'User');
+        setUserRole('Admin');
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUser('');
+        setUserRole('Registrar');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch Data from Supabase
   useEffect(() => {
-    localStorage.setItem('admissionRecords', JSON.stringify(admissionRecords));
-  }, [admissionRecords]);
+    if (isAuthenticated) {
+      const fetchData = async () => {
+        try {
+          const [referrals, appointments, admissions] = await Promise.all([
+            dbService.getReferrals(),
+            dbService.getAppointments(),
+            dbService.getAdmissions()
+          ]);
+          
+          if (referrals.length > 0) setReferralRecords(referrals);
+          if (appointments.length > 0) setAppointmentRecords(appointments);
+          if (admissions.length > 0) setAdmissionRecords(admissions);
+        } catch (error) {
+          console.error('Error fetching data:', error);
+          showToast('Failed to load data from server', 'error');
+        }
+      };
+      fetchData();
+    }
+  }, [isAuthenticated]);
 
   const handleSignIn = (username: string, role: string) => {
     setIsAuthenticated(true);
     setUserRole(role);
     setCurrentUser(username);
-    localStorage.setItem('isAuthenticated', 'true');
-    localStorage.setItem('currentUser', username);
-    localStorage.setItem('userRole', role);
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
     setIsAuthenticated(false);
     setUserRole('Registrar');
     setCurrentUser('');
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('userRole');
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#121417] flex items-center justify-center">
+        <Activity className="w-12 h-12 text-[#d4a373] animate-pulse" />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <SignIn onSignIn={handleSignIn} />;
+    return authMode === 'signin' ? (
+      <SignIn 
+        onSignIn={handleSignIn} 
+        onToggleSignUp={() => setAuthMode('signup')} 
+      />
+    ) : (
+      <SignUp 
+        onSignUpSuccess={handleSignIn} 
+        onToggleSignIn={() => setAuthMode('signin')} 
+      />
+    );
   }
 
   const currentReferralRecord = referralRecords[currentReferralIndex];
@@ -91,10 +132,7 @@ export default function App() {
 
   const handleReferralChange = (field: keyof ReferralRecord, value: any) => {
     if (field === 'mrn') {
-      // Only allow digits and max 6 characters
       const digitsOnly = value.replace(/\D/g, '').slice(0, 6);
-      
-      // Check uniqueness if it's a full 6-digit MRN
       if (digitsOnly.length === 6) {
         const isDuplicate = referralRecords.some((rec, idx) => 
           idx !== currentReferralIndex && rec.mrn === digitsOnly
@@ -117,10 +155,7 @@ export default function App() {
 
   const handleAppointmentChange = (field: keyof AppointmentRecord, value: any) => {
     if (field === 'mrn') {
-      // Only allow digits and max 6 characters
       const digitsOnly = value.replace(/\D/g, '').slice(0, 6);
-      
-      // Check uniqueness if it's a full 6-digit MRN
       if (digitsOnly.length === 6) {
         const isDuplicate = appointmentRecords.some((rec, idx) => 
           idx !== currentAppointmentIndex && rec.mrn === digitsOnly
@@ -200,94 +235,127 @@ export default function App() {
     });
   };
 
-  const handleDeleteReferral = (idToDelete?: string) => {
+  const handleDeleteReferral = async (idToDelete?: string) => {
     if (!window.confirm('Are you sure you want to delete this referral record?')) return;
     
-    setReferralRecords(prev => {
-      const targetIndex = idToDelete 
-        ? prev.findIndex(r => r.id === idToDelete) 
-        : currentReferralIndex;
-
-      if (targetIndex === -1) return prev;
-
-      const newRecords = prev.filter((_, index) => index !== targetIndex);
-      
-      if (newRecords.length === 0) {
-        setCurrentReferralIndex(0);
-        return [{ ...initialRecord, id: `${Date.now()}-${Math.random()}`, sn: 1 }];
+    const targetId = idToDelete || referralRecords[currentReferralIndex].id;
+    
+    try {
+      if (targetId.includes('-')) {
+        await dbService.deleteReferral(targetId);
       }
 
-      const reindexedRecords = newRecords.map((rec, idx) => ({ ...rec, sn: idx + 1 }));
-      
-      if (currentReferralIndex >= reindexedRecords.length) {
-        setCurrentReferralIndex(reindexedRecords.length - 1);
-      } else if (idToDelete && targetIndex < currentReferralIndex) {
-        setCurrentReferralIndex(currentReferralIndex - 1);
-      }
-      
-      return reindexedRecords;
-    });
-    showToast('Record Deleted Successfully');
+      setReferralRecords(prev => {
+        const targetIndex = idToDelete 
+          ? prev.findIndex(r => r.id === idToDelete) 
+          : currentReferralIndex;
+
+        if (targetIndex === -1) return prev;
+
+        const newRecords = prev.filter((_, index) => index !== targetIndex);
+        
+        if (newRecords.length === 0) {
+          setCurrentReferralIndex(0);
+          return [{ ...initialRecord, id: `${Date.now()}-${Math.random()}`, sn: 1 }];
+        }
+
+        const reindexedRecords = newRecords.map((rec, idx) => ({ ...rec, sn: idx + 1 }));
+        
+        if (currentReferralIndex >= reindexedRecords.length) {
+          setCurrentReferralIndex(reindexedRecords.length - 1);
+        } else if (idToDelete && targetIndex < currentReferralIndex) {
+          setCurrentReferralIndex(currentReferralIndex - 1);
+        }
+        
+        return reindexedRecords;
+      });
+      showToast('Record Deleted Successfully');
+    } catch (error) {
+      console.error('Delete error:', error);
+      showToast('Failed to delete record', 'error');
+    }
   };
 
-  const handleDeleteAppointment = (idToDelete?: string) => {
+  const handleDeleteAppointment = async (idToDelete?: string) => {
     if (!window.confirm('Are you sure you want to delete this appointment record?')) return;
     
-    setAppointmentRecords(prev => {
-      const targetIndex = idToDelete 
-        ? prev.findIndex(r => r.id === idToDelete) 
-        : currentAppointmentIndex;
+    const targetId = idToDelete || appointmentRecords[currentAppointmentIndex].id;
 
-      if (targetIndex === -1) return prev;
-
-      const newRecords = prev.filter((_, index) => index !== targetIndex);
-      
-      if (newRecords.length === 0) {
-        setCurrentAppointmentIndex(0);
-        return [{ ...initialAppointmentRecord, id: `${Date.now()}-${Math.random()}`, sn: 1 }];
+    try {
+      if (targetId.includes('-')) {
+        await dbService.deleteAppointment(targetId);
       }
 
-      const reindexedRecords = newRecords.map((rec, idx) => ({ ...rec, sn: idx + 1 }));
-      
-      if (currentAppointmentIndex >= reindexedRecords.length) {
-        setCurrentAppointmentIndex(reindexedRecords.length - 1);
-      } else if (idToDelete && targetIndex < currentAppointmentIndex) {
-        setCurrentAppointmentIndex(currentAppointmentIndex - 1);
-      }
-      
-      return reindexedRecords;
-    });
-    showToast('Record Deleted Successfully');
+      setAppointmentRecords(prev => {
+        const targetIndex = idToDelete 
+          ? prev.findIndex(r => r.id === idToDelete) 
+          : currentAppointmentIndex;
+
+        if (targetIndex === -1) return prev;
+
+        const newRecords = prev.filter((_, index) => index !== targetIndex);
+        
+        if (newRecords.length === 0) {
+          setCurrentAppointmentIndex(0);
+          return [{ ...initialAppointmentRecord, id: `${Date.now()}-${Math.random()}`, sn: 1 }];
+        }
+
+        const reindexedRecords = newRecords.map((rec, idx) => ({ ...rec, sn: idx + 1 }));
+        
+        if (currentAppointmentIndex >= reindexedRecords.length) {
+          setCurrentAppointmentIndex(reindexedRecords.length - 1);
+        } else if (idToDelete && targetIndex < currentAppointmentIndex) {
+          setCurrentAppointmentIndex(currentAppointmentIndex - 1);
+        }
+        
+        return reindexedRecords;
+      });
+      showToast('Record Deleted Successfully');
+    } catch (error) {
+      console.error('Delete error:', error);
+      showToast('Failed to delete record', 'error');
+    }
   };
 
-  const handleDeleteAdmission = (idToDelete?: string) => {
+  const handleDeleteAdmission = async (idToDelete?: string) => {
     if (!window.confirm('Are you sure you want to delete this admission record?')) return;
     
-    setAdmissionRecords(prev => {
-      const targetIndex = idToDelete 
-        ? prev.findIndex(r => r.id === idToDelete) 
-        : currentAdmissionIndex;
+    const targetId = idToDelete || admissionRecords[currentAdmissionIndex].id;
 
-      if (targetIndex === -1) return prev;
-
-      const newRecords = prev.filter((_, index) => index !== targetIndex);
-      
-      if (newRecords.length === 0) {
-        setCurrentAdmissionIndex(0);
-        return [{ ...initialAdmissionRecord, id: `${Date.now()}-${Math.random()}`, sn: 1 }];
+    try {
+      if (targetId.includes('-')) {
+        await dbService.deleteAdmission(targetId);
       }
 
-      const reindexedRecords = newRecords.map((rec, idx) => ({ ...rec, sn: idx + 1 }));
-      
-      if (currentAdmissionIndex >= reindexedRecords.length) {
-        setCurrentAdmissionIndex(reindexedRecords.length - 1);
-      } else if (idToDelete && targetIndex < currentAdmissionIndex) {
-        setCurrentAdmissionIndex(currentAdmissionIndex - 1);
-      }
-      
-      return reindexedRecords;
-    });
-    showToast('Record Deleted Successfully');
+      setAdmissionRecords(prev => {
+        const targetIndex = idToDelete 
+          ? prev.findIndex(r => r.id === idToDelete) 
+          : currentAdmissionIndex;
+
+        if (targetIndex === -1) return prev;
+
+        const newRecords = prev.filter((_, index) => index !== targetIndex);
+        
+        if (newRecords.length === 0) {
+          setCurrentAdmissionIndex(0);
+          return [{ ...initialAdmissionRecord, id: `${Date.now()}-${Math.random()}`, sn: 1 }];
+        }
+
+        const reindexedRecords = newRecords.map((rec, idx) => ({ ...rec, sn: idx + 1 }));
+        
+        if (currentAdmissionIndex >= reindexedRecords.length) {
+          setCurrentAdmissionIndex(reindexedRecords.length - 1);
+        } else if (idToDelete && targetIndex < currentAdmissionIndex) {
+          setCurrentAdmissionIndex(currentAdmissionIndex - 1);
+        }
+        
+        return reindexedRecords;
+      });
+      showToast('Record Deleted Successfully');
+    } catch (error) {
+      console.error('Delete error:', error);
+      showToast('Failed to delete record', 'error');
+    }
   };
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -300,15 +368,27 @@ export default function App() {
     }, 3000);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     let currentRecord;
+    let saveFn;
+    let addFn;
+    let setRecords;
     
     if (activeTab === 'register') {
       currentRecord = currentReferralRecord;
+      saveFn = dbService.saveReferral.bind(dbService);
+      addFn = handleAddNewReferral;
+      setRecords = setReferralRecords;
     } else if (activeTab === 'admission') {
       currentRecord = currentAdmissionRecord;
+      saveFn = dbService.saveAdmission.bind(dbService);
+      addFn = handleAddNewAdmission;
+      setRecords = setAdmissionRecords;
     } else {
       currentRecord = currentAppointmentRecord;
+      saveFn = dbService.saveAppointment.bind(dbService);
+      addFn = handleAddNewAppointment;
+      setRecords = setAppointmentRecords;
     }
     
     if (!currentRecord.mrn || currentRecord.mrn.length !== 6) {
@@ -334,14 +414,23 @@ export default function App() {
       }
     }
 
-    if (activeTab === 'register') {
-      handleAddNewReferral();
-    } else if (activeTab === 'followup') {
-      handleAddNewAppointment();
-    } else if (activeTab === 'admission') {
-      handleAddNewAdmission();
+    try {
+      const savedRecord = await saveFn(currentRecord);
+      
+      // Update the local state with the saved record (which now has a real ID)
+      setRecords(prev => {
+        const index = prev.findIndex(r => r.id === currentRecord.id);
+        const newRecords = [...prev];
+        newRecords[index] = savedRecord;
+        return newRecords;
+      });
+
+      addFn();
+      showToast('Record Saved Successfully');
+    } catch (error) {
+      console.error('Save error:', error);
+      showToast('Failed to save record', 'error');
     }
-    showToast('Record Saved Successfully');
   };
 
   const getTitle = () => {

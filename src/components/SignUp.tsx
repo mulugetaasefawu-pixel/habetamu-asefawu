@@ -1,21 +1,22 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { motion } from 'motion/react';
-import { Lock, Mail, ShieldCheck, Camera, User as UserIcon } from 'lucide-react';
+import { Lock, Mail, ShieldCheck, Camera, UserPlus } from 'lucide-react';
 import { gsap } from 'gsap';
 import { Draggable } from 'gsap/Draggable';
 import { supabase } from '../supabaseClient';
 
 gsap.registerPlugin(Draggable);
 
-interface SignInProps {
-  onSignIn: (username: string, role: string) => void;
-  onToggleSignUp: () => void;
+interface SignUpProps {
+  onSignUpSuccess: (username: string, role: string) => void;
+  onToggleSignIn: () => void;
 }
 
-export const SignIn: React.FC<SignInProps> = ({ onSignIn, onToggleSignUp }) => {
+export const SignUp: React.FC<SignUpProps> = ({ onSignUpSuccess, onToggleSignIn }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [logo, setLogo] = useState<string | null>(localStorage.getItem('hospital_logo'));
   const [isOn, setIsOn] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,25 +42,30 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn, onToggleSignUp }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
     });
 
-    if (signInError) {
-      setError(signInError.message);
+    if (signUpError) {
+      setError(signUpError.message);
     } else if (data.user) {
-      // For this project, we'll use the email as username and default to 'Admin' role
-      // In a real app, you'd fetch the user's role from a profiles table
-      onSignIn(data.user.email || 'User', 'Admin');
+      if (data.session) {
+        // Auto-login if session exists (email confirmation disabled)
+        onSignUpSuccess(data.user.email || 'User', 'Admin');
+      } else {
+        // Session is null, email confirmation is likely enabled
+        setSuccessMessage('Check your email and confirm your account before logging in.');
+      }
     }
   };
 
   const toggleLamp = () => {
     setIsOn(prev => !prev);
     const clickSound = new Audio("https://assets.codepen.io/605876/click.mp3");
-    clickSound.play().catch(() => {}); // Ignore if blocked by browser
+    clickSound.play().catch(() => {});
   };
 
   useLayoutEffect(() => {
@@ -89,8 +95,6 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn, onToggleSignUp }) => {
 
   return (
     <div className={`min-h-screen transition-colors duration-500 flex items-center justify-center p-4 relative overflow-hidden ${isOn ? 'bg-[#1c1f24]' : 'bg-[#121417]'}`}>
-      
-      {/* Glow effect */}
       <div 
         className="absolute inset-0 pointer-events-none transition-opacity duration-500"
         style={{ 
@@ -100,31 +104,23 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn, onToggleSignUp }) => {
       />
 
       <div className="container max-w-5xl w-full flex flex-wrap items-center justify-center gap-12 z-10">
-        
-        {/* Cute Lamp */}
         <div className="lamp-wrapper relative w-[280px] h-[400px] flex justify-center" ref={lampRef}>
           <svg className="lamp-svg w-full h-full overflow-visible" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
             <ellipse 
               className={`transition-opacity duration-500 blur-[15px] fill-[#ffdb8a] ${isOn ? 'opacity-60' : 'opacity-0'}`} 
               cx="100" cy="110" rx="60" ry="30" 
             />
-            
             <rect fill="#d1ccc2" x="92" y="100" width="16" height="160" rx="8" />
             <rect fill="#d1ccc2" x="60" y="250" width="80" height="12" rx="6" />
-
             <g className="pull-cord">
               <line ref={cordLineRef} stroke="#555" strokeWidth="2" x1="130" y1="110" x2="130" y2="180" />
               <circle ref={cordBeadRef} fill="#d4a373" cx="130" cy="190" r="6" />
               <circle ref={hitAreaRef} cx="130" cy="190" r="25" fill="transparent" className="cursor-pointer" />
             </g>
-
-            {/* Mushroom Shade */}
             <path 
               className={`transition-all duration-500 ${isOn ? 'fill-white drop-shadow-[0_0_30px_rgba(255,255,200,0.4)]' : 'fill-[#f5f0e6]'}`}
               d="M30 110 C 30 50, 170 50, 170 110 C 170 125, 30 125, 30 110 Z" 
             />
-
-            {/* Hospital Logo inside the lamp shade area */}
             <foreignObject x="70" y="65" width="60" height="60">
               <div 
                 className="w-full h-full flex items-center justify-center cursor-pointer group"
@@ -144,18 +140,11 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn, onToggleSignUp }) => {
               </div>
             </foreignObject>
           </svg>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            className="hidden" 
-            accept="image/*" 
-            onChange={handleLogoUpload}
-          />
+          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
         </div>
 
-        {/* Login Form */}
         <div className={`login-form bg-white/5 backdrop-blur-[20px] p-10 rounded-[30px] w-[340px] border border-white/10 shadow-[0_20px_40px_rgba(0,0,0,0.3)] transition-all duration-700 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] ${isOn ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-[30px] pointer-events-none'}`}>
-          <h2 className="text-white text-center text-2xl font-medium mb-6">Bati Portal</h2>
+          <h2 className="text-white text-center text-2xl font-medium mb-6">Create Account</h2>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="form-group">
               <label className="block text-[#999] text-sm mb-2 ml-1">Email Address</label>
@@ -196,27 +185,37 @@ export const SignIn: React.FC<SignInProps> = ({ onSignIn, onToggleSignUp }) => {
               </motion.p>
             )}
 
+            {successMessage && (
+              <motion.p 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-teal-400 text-xs font-bold text-center bg-teal-50/10 py-3 px-4 rounded-lg border border-teal-500/20"
+              >
+                {successMessage}
+              </motion.p>
+            )}
+
             <button 
               type="submit"
               className="w-full py-4 bg-gradient-to-r from-[#bf953f] via-[#fcf6ba] to-[#aa771c] rounded-[15px] font-semibold text-[#121417] hover:scale-[1.02] transition-all active:scale-95"
             >
-              Sign In
+              Sign Up
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <button 
-              onClick={onToggleSignUp}
+              onClick={onToggleSignIn}
               className="text-[#d4a373] text-sm hover:underline"
             >
-              Don't have an account? Sign Up
+              Already have an account? Sign In
             </button>
           </div>
 
           <div className="mt-8 pt-6 border-t border-white/10 flex flex-col items-center">
             <div className="flex items-center space-x-2">
               <ShieldCheck className="w-4 h-4 text-[#d4a373]" />
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Secure Access</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Secure Registration</p>
             </div>
           </div>
         </div>
